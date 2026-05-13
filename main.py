@@ -20,11 +20,13 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
+
 def get_sheet():
     creds_dict = json.loads(GOOGLE_CREDENTIALS_JSON)
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     client = gspread.authorize(creds)
     return client.open_by_key(SPREADSHEET_ID)
+
 
 def main_menu():
     return ReplyKeyboardMarkup(
@@ -37,6 +39,7 @@ def main_menu():
         resize_keyboard=True
     )
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     user_state.pop(user_id, None)
@@ -45,6 +48,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "GK NETWORK\n\nКеракли бўлимни танланг:",
         reply_markup=main_menu()
     )
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -55,8 +59,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "Компания очиш":
-        user_state[user_id] = {"step": "company_name"}
+        user_state[user_id] = {
+            "mode": "company",
+            "step": "company_name"
+        }
         await update.message.reply_text("Компания номини киритинг:")
+        return
+
+    if text == "Агент бўлиш":
+        await update.message.reply_text("Ҳозирча аввал компания регистрациясини тўлиқ ишлатиб оламиз.")
+        return
+
+    if text == "Appga кириш":
+        await update.message.reply_text(f"AppSheet:\n{APPSHEET_LINK}")
         return
 
     state = user_state.get(user_id)
@@ -68,6 +83,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    if state.get("mode") == "company":
+        await handle_company(update, user_id, text, state)
+
+
+async def handle_company(update: Update, user_id: int, text: str, state: dict):
     step = state["step"]
 
     if step == "company_name":
@@ -97,39 +117,47 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if step == "password":
         password = text
 
-        ss = get_sheet()
-        sheet = ss.worksheet("Companies")
+        try:
+            ss = get_sheet()
+            sheet = ss.worksheet("Companies")
 
-        now = datetime.now()
-        end_date = now + timedelta(days=30)
-        company_id = "C-" + str(int(now.timestamp()))
+            now = datetime.now()
+            end_date = now + timedelta(days=30)
+            company_id = "C-" + str(int(now.timestamp()))
 
-        sheet.append_row([
-            company_id,
-            state["company_name"],
-            state["owner_name"],
-            state["owner_phone"],
-            str(user_id),
-            state["login"],
-            password,
-            "Trial",
-            now.strftime("%Y-%m-%d"),
-            end_date.strftime("%Y-%m-%d"),
-            "Active",
-            now.strftime("%Y-%m-%d %H:%M:%S")
-        ])
+            sheet.append_row([
+                company_id,
+                state["company_name"],
+                state["owner_name"],
+                state["owner_phone"],
+                str(user_id),
+                state["login"],
+                password,
+                "Trial",
+                now.strftime("%Y-%m-%d"),
+                end_date.strftime("%Y-%m-%d"),
+                "Active",
+                now.strftime("%Y-%m-%d %H:%M:%S")
+            ])
 
-        user_state.pop(user_id, None)
+            user_state.pop(user_id, None)
 
-        await update.message.reply_text(
-            f"✅ Компания очилди\n\n"
-            f"ID: {company_id}\n"
-            f"Компания: {state['company_name']}\n\n"
-            f"Логин: {state['login']}\n"
-            f"Парол: {password}\n\n"
-            f"AppSheet:\n{APPSHEET_LINK}",
-            reply_markup=main_menu()
-        )
+            await update.message.reply_text(
+                f"✅ Компания очилди\n\n"
+                f"ID: {company_id}\n"
+                f"Компания: {state['company_name']}\n\n"
+                f"30 кунлик Trial актив.\n\n"
+                f"Логин: {state['login']}\n"
+                f"Парол: {password}\n\n"
+                f"AppSheet:\n{APPSHEET_LINK}",
+                reply_markup=main_menu()
+            )
+
+        except Exception as e:
+            await update.message.reply_text(
+                f"❌ Google Sheets'га ёзишда хато:\n\n{e}"
+            )
+
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -138,6 +166,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     app.run_polling(drop_pending_updates=True)
+
 
 if __name__ == "__main__":
     main()
