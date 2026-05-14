@@ -89,7 +89,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.message.from_user.id
 
-    if text == "🛠 Тех. ёрдам":
+if text == "🛠 Тех. ёрдам":
     await update.message.reply_text(
         "🛠 Техник ёрдам\n\n📞 +998917468500"
     )
