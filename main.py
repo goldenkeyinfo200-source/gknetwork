@@ -33,25 +33,55 @@ def get_sheet():
     return client.open_by_key(SPREADSHEET_ID)
 
 
-def main_menu():
+def guest_menu():
     return ReplyKeyboardMarkup(
         [
-            ["Компания очиш"],
-            ["Агент бўлиш"],
-            ["Appga кириш"],
-            ["Алоқа"]
+            ["🏢 Компания очиш"],
+            ["👤 Агент бўлиш"],
+            ["🛠 Тех. ёрдам"]
+        ],
+        resize_keyboard=True
+    )
+
+
+def company_menu():
+    return ReplyKeyboardMarkup(
+        [
+            ["🚀 Appga кириш"],
+            ["👥 Агентлар", "🏠 Объектлар"],
+            ["📊 Статистика", "💳 Тариф"],
+            ["🎁 Referral", "🛠 Тех. ёрдам"]
         ],
         resize_keyboard=True
     )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    user_state.pop(user_id, None)
+    user_id = str(update.message.from_user.id)
+
+    user_state.pop(int(user_id), None)
+
+    try:
+        ss = get_sheet()
+        sheet = ss.worksheet("Companies")
+
+        records = sheet.get_all_records()
+
+        for row in records:
+            if str(row.get("TelegramID", "")) == user_id:
+
+                await update.message.reply_text(
+                    f"✅ Хуш келибсиз, {row.get('CompanyName', '')}",
+                    reply_markup=company_menu()
+                )
+                return
+
+    except Exception as e:
+        print("START ERROR:", e)
 
     await update.message.reply_text(
         "GK NETWORK\n\nКеракли бўлимни танланг:",
-        reply_markup=main_menu()
+        reply_markup=guest_menu()
     )
 
 
@@ -59,11 +89,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.message.from_user.id
 
-    if text == "Тех.ёрдам":
-        await update.message.reply_text("Админ: +998917468500")
-        return
+    if text == "🛠 Тех. ёрдам":
+    await update.message.reply_text(
+        "🛠 Техник ёрдам\n\n📞 +998917468500"
+    )
+    return
 
-    if text == "Компания очиш":
+    if text == "🏢 Компания очиш":
         user_state[user_id] = {
             "mode": "company",
             "step": "company_name"
@@ -71,11 +103,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Компания номини киритинг:")
         return
 
-    if text == "Агент бўлиш":
+    if text == "👤 Агент бўлиш":
         await update.message.reply_text("Ҳозирча аввал компания регистрациясини тўлиқ ишлатиб оламиз.")
         return
 
-    if text == "Appga кириш":
+    if text == "🚀 Appga кириш":
         await update.message.reply_text(f"AppSheet:\n{APPSHEET_LINK}")
         return
 
@@ -84,7 +116,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not state:
         await update.message.reply_text(
             "Керакли бўлимни танланг:",
-            reply_markup=main_menu()
+            reply_markup=company_menu()
         )
         return
 
@@ -155,7 +187,7 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
                 f"Логин: {state['login']}\n"
                 f"Парол: {password}\n\n"
                 f"AppSheet:\n{APPSHEET_LINK}",
-                reply_markup=main_menu()
+                reply_markup=company_menu()
             )
 
         except Exception as e:
