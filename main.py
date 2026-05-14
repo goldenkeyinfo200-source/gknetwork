@@ -1,4 +1,3 @@
-import re
 import os
 import json
 from datetime import datetime, timedelta
@@ -13,6 +12,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 APPSHEET_LINK = os.getenv("APPSHEET_LINK")
 GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")
+
+ADMIN_GMAIL = os.getenv("ADMIN_GMAIL", "goldenkeyinfo200@gmail.com")
 
 print("SPREADSHEET_ID =", SPREADSHEET_ID)
 
@@ -48,7 +49,7 @@ def guest_menu():
 def company_menu():
     return ReplyKeyboardMarkup(
         [
-            ["🚀 Appga кириш"],
+            ["🚀 Иловага кириш"],
             ["👥 Агентлар", "🏠 Объектлар"],
             ["📊 Статистика", "💳 Тариф"],
             ["🎁 Referral", "🛠 Тех. ёрдам"]
@@ -57,20 +58,27 @@ def company_menu():
     )
 
 
+def offer_menu():
+    return ReplyKeyboardMarkup(
+        [
+            ["✅ Розиман"],
+            ["❌ Рози эмасман"]
+        ],
+        resize_keyboard=True
+    )
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
-
     user_state.pop(int(user_id), None)
 
     try:
         ss = get_sheet()
         sheet = ss.worksheet("Companies")
-
         records = sheet.get_all_records()
 
         for row in records:
             if str(row.get("TelegramID", "")) == user_id:
-
                 await update.message.reply_text(
                     f"✅ Хуш келибсиз, {row.get('CompanyName', '')}",
                     reply_markup=company_menu()
@@ -105,11 +113,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "👤 Агент бўлиш":
-        await update.message.reply_text("Ҳозирча аввал компания регистрациясини тўлиқ ишлатиб оламиз.")
+        await update.message.reply_text(
+            "Ҳозирча компания регистрацияси орқали ишга туширамиз."
+        )
         return
 
-    if text == "🚀 Appga кириш":
-        await update.message.reply_text(f"AppSheet:\n{APPSHEET_LINK}")
+    if text == "🚀 Иловага кириш":
+        await update.message.reply_text(
+            f"🚀 GK NETWORK иловаси:\n{APPSHEET_LINK}"
+        )
         return
 
     state = user_state.get(user_id)
@@ -117,7 +129,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not state:
         await update.message.reply_text(
             "Керакли бўлимни танланг:",
-            reply_markup=company_menu()
+            reply_markup=guest_menu()
         )
         return
 
@@ -142,25 +154,6 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
 
     if step == "owner_phone":
         state["owner_phone"] = text
-        state["step"] = "gmail"
-        await update.message.reply_text(
-            "AppSheet’га кириш учун Gmail аккаунтингизни киритинг:\n\n"
-            "Масалан: example@gmail.com"
-        )
-        return
-
-    if step == "gmail":
-        gmail = text.strip().lower()
-
-        if not re.match(r"^[\w\.-]+@gmail\.com$", gmail):
-            await update.message.reply_text(
-                "❌ Gmail нотўғри киритилди.\n\n"
-                "Илтимос, фақат Gmail киритинг:\n"
-                "Масалан: example@gmail.com"
-            )
-            return
-
-        state["gmail"] = gmail
         state["step"] = "login"
         await update.message.reply_text("Логин киритинг:")
         return
@@ -175,14 +168,6 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
         state["password"] = text
         state["step"] = "offer"
 
-        offer_menu = ReplyKeyboardMarkup(
-            [
-                ["✅ Розиман"],
-                ["❌ Рози эмасман"]
-            ],
-            resize_keyboard=True
-        )
-
         await update.message.reply_text(
             "📄 ОФЕРТА ШАРТНОМА\n\n"
             "GK NETWORK платформасидан фойдаланиш шартлари:\n\n"
@@ -193,7 +178,7 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
             "5. Сохта маълумот киритиш ёки қоидаларни бузиш аккаунт блокланишига сабаб бўлади.\n"
             "6. Давом этиш орқали сиз ушбу шартларга рози эканлигингизни тасдиқлайсиз.\n\n"
             "Давом этиш учун “✅ Розиман” тугмасини босинг.",
-            reply_markup=offer_menu
+            reply_markup=offer_menu()
         )
         return
 
@@ -207,7 +192,10 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
             return
 
         if text != "✅ Розиман":
-            await update.message.reply_text("Давом этиш учун “✅ Розиман” тугмасини босинг.")
+            await update.message.reply_text(
+                "Давом этиш учун “✅ Розиман” тугмасини босинг.",
+                reply_markup=offer_menu()
+            )
             return
 
         try:
@@ -224,7 +212,7 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
                 state["owner_name"],
                 state["owner_phone"],
                 str(user_id),
-                state["gmail"],
+                ADMIN_GMAIL,
                 state["login"],
                 state["password"],
                 "Trial",
@@ -241,13 +229,11 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
             await update.message.reply_text(
                 f"✅ Компания очилди\n\n"
                 f"ID: {company_id}\n"
-                f"Компания: {state['company_name']}\n"
-                f"Gmail: {state['gmail']}\n\n"
+                f"Компания: {state['company_name']}\n\n"
                 f"30 кунлик Trial актив.\n\n"
                 f"Логин: {state['login']}\n"
                 f"Парол: {state['password']}\n\n"
-                f"AppSheet:\n{APPSHEET_LINK}\n\n"
-                f"⚠️ Агар AppSheet Access Denied чиқса, админ Gmail’ни AppSheet Users рўйхатига қўшиши керак.",
+                f"🚀 GK NETWORK иловаси:\n{APPSHEET_LINK}",
                 reply_markup=company_menu()
             )
 
