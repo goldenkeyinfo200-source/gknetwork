@@ -6,7 +6,13 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from telegram import ReplyKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
@@ -21,16 +27,19 @@ user_state = {}
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
+    "https://www.googleapis.com/auth/drive",
 ]
 
 
 def get_sheet():
     creds_dict = json.loads(GOOGLE_CREDENTIALS_JSON)
-    creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-    client = gspread.authorize(creds)
 
-    print("OPENING:", SPREADSHEET_ID)
+    creds = Credentials.from_service_account_info(
+        creds_dict,
+        scopes=SCOPES
+    )
+
+    client = gspread.authorize(creds)
 
     return client.open_by_key(SPREADSHEET_ID)
 
@@ -70,19 +79,24 @@ def offer_menu():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
+
     user_state.pop(int(user_id), None)
 
     try:
         ss = get_sheet()
+
         sheet = ss.worksheet("Companies")
+
         records = sheet.get_all_records()
 
         for row in records:
             if str(row.get("TelegramID", "")) == user_id:
+
                 await update.message.reply_text(
                     f"✅ Хуш келибсиз, {row.get('CompanyName', '')}",
                     reply_markup=company_menu()
                 )
+
                 return
 
     except Exception as e:
@@ -109,7 +123,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "mode": "company",
             "step": "company_name"
         }
-        await update.message.reply_text("Компания номини киритинг:")
+
+        await update.message.reply_text(
+            "Компания номини киритинг:"
+        )
+
         return
 
     if text == "👤 Агент бўлиш":
@@ -137,31 +155,52 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_company(update, user_id, text, state)
 
 
-async def handle_company(update: Update, user_id: int, text: str, state: dict):
+async def handle_company(
+    update: Update,
+    user_id: int,
+    text: str,
+    state: dict
+):
     step = state["step"]
 
     if step == "company_name":
         state["company_name"] = text
         state["step"] = "owner_name"
-        await update.message.reply_text("Раҳбар исмини киритинг:")
+
+        await update.message.reply_text(
+            "Раҳбар исмини киритинг:"
+        )
+
         return
 
     if step == "owner_name":
         state["owner_name"] = text
         state["step"] = "owner_phone"
-        await update.message.reply_text("Телефон рақам киритинг:")
+
+        await update.message.reply_text(
+            "Телефон рақам киритинг:"
+        )
+
         return
 
     if step == "owner_phone":
         state["owner_phone"] = text
         state["step"] = "login"
-        await update.message.reply_text("Логин киритинг:")
+
+        await update.message.reply_text(
+            "Логин киритинг:"
+        )
+
         return
 
     if step == "login":
         state["login"] = text
         state["step"] = "password"
-        await update.message.reply_text("Парол киритинг:")
+
+        await update.message.reply_text(
+            "Парол киритинг:"
+        )
+
         return
 
     if step == "password":
@@ -172,23 +211,24 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
             "📄 ОФЕРТА ШАРТНОМА\n\n"
             "GK NETWORK платформасидан фойдаланиш шартлари:\n\n"
             "1. Платформадаги маълумотлар фақат иш мақсадида фойдаланилади.\n"
-            "2. Бошқа агент ёки компания мижозининг телефон рақами ва тўлиқ манзили очиқ кўрсатилмайди.\n"
-            "3. Алоқа фақат тизим ёки масъул агент орқали амалга оширилади.\n"
-            "4. Мижоз ва объект маълумотларини учинчи шахсларга бериш тақиқланади.\n"
-            "5. Сохта маълумот киритиш ёки қоидаларни бузиш аккаунт блокланишига сабаб бўлади.\n"
-            "6. Давом этиш орқали сиз ушбу шартларга рози эканлигингизни тасдиқлайсиз.\n\n"
+            "2. Бошқа агент ёки компания мижоз маълумотларини тарқатиш тақиқланади.\n"
+            "3. Қоидалар бузилса аккаунт блокланади.\n\n"
             "Давом этиш учун “✅ Розиман” тугмасини босинг.",
             reply_markup=offer_menu()
         )
+
         return
 
     if step == "offer":
+
         if text == "❌ Рози эмасман":
             user_state.pop(user_id, None)
+
             await update.message.reply_text(
                 "❌ Рўйхатдан ўтиш бекор қилинди.",
                 reply_markup=guest_menu()
             )
+
             return
 
         if text != "✅ Розиман":
@@ -196,17 +236,22 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
                 "Давом этиш учун “✅ Розиман” тугмасини босинг.",
                 reply_markup=offer_menu()
             )
+
             return
 
         try:
             ss = get_sheet()
-            sheet = ss.worksheet("Companies")
+
+            companies_sheet = ss.worksheet("Companies")
+            agents_sheet = ss.worksheet("Agents")
 
             now = datetime.now()
             end_date = now + timedelta(days=30)
+
             company_id = "C-" + str(int(now.timestamp()))
 
-            sheet.append_row([
+            # COMPANIES GA YOZISH
+            companies_sheet.append_row([
                 company_id,
                 state["company_name"],
                 state["owner_name"],
@@ -224,6 +269,12 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
                 now.strftime("%Y-%m-%d %H:%M:%S")
             ])
 
+            # AGENTS GA LOGIN/PASSWORD YOZISH
+            agents_sheet.append_row([
+                state["login"],
+                state["password"]
+            ])
+
             user_state.pop(user_id, None)
 
             await update.message.reply_text(
@@ -238,8 +289,10 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
             )
 
         except Exception as e:
+            print("REGISTER ERROR:", e)
+
             await update.message.reply_text(
-                f"❌ Google Sheets'га ёзишда хато:\n\n{e}"
+                f"❌ Хато:\n\n{e}"
             )
 
 
@@ -247,7 +300,15 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    app.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            handle_message
+        )
+    )
+
+    print("BOT STARTED...")
 
     app.run_polling(drop_pending_updates=True)
 
