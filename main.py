@@ -1,3 +1,4 @@
+import re
 import os
 import json
 from datetime import datetime, timedelta
@@ -141,6 +142,25 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
 
     if step == "owner_phone":
         state["owner_phone"] = text
+        state["step"] = "gmail"
+        await update.message.reply_text(
+            "AppSheet’га кириш учун Gmail аккаунтингизни киритинг:\n\n"
+            "Масалан: example@gmail.com"
+        )
+        return
+
+    if step == "gmail":
+        gmail = text.strip().lower()
+
+        if not re.match(r"^[\w\.-]+@gmail\.com$", gmail):
+            await update.message.reply_text(
+                "❌ Gmail нотўғри киритилди.\n\n"
+                "Илтимос, фақат Gmail киритинг:\n"
+                "Масалан: example@gmail.com"
+            )
+            return
+
+        state["gmail"] = gmail
         state["step"] = "login"
         await update.message.reply_text("Логин киритинг:")
         return
@@ -152,7 +172,43 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
         return
 
     if step == "password":
-        password = text
+        state["password"] = text
+        state["step"] = "offer"
+
+        offer_menu = ReplyKeyboardMarkup(
+            [
+                ["✅ Розиман"],
+                ["❌ Рози эмасман"]
+            ],
+            resize_keyboard=True
+        )
+
+        await update.message.reply_text(
+            "📄 ОФЕРТА ШАРТНОМА\n\n"
+            "GK NETWORK платформасидан фойдаланиш шартлари:\n\n"
+            "1. Платформадаги маълумотлар фақат иш мақсадида фойдаланилади.\n"
+            "2. Бошқа агент ёки компания мижозининг телефон рақами ва тўлиқ манзили очиқ кўрсатилмайди.\n"
+            "3. Алоқа фақат тизим ёки масъул агент орқали амалга оширилади.\n"
+            "4. Мижоз ва объект маълумотларини учинчи шахсларга бериш тақиқланади.\n"
+            "5. Сохта маълумот киритиш ёки қоидаларни бузиш аккаунт блокланишига сабаб бўлади.\n"
+            "6. Давом этиш орқали сиз ушбу шартларга рози эканлигингизни тасдиқлайсиз.\n\n"
+            "Давом этиш учун “✅ Розиман” тугмасини босинг.",
+            reply_markup=offer_menu
+        )
+        return
+
+    if step == "offer":
+        if text == "❌ Рози эмасман":
+            user_state.pop(user_id, None)
+            await update.message.reply_text(
+                "❌ Рўйхатдан ўтиш бекор қилинди.",
+                reply_markup=guest_menu()
+            )
+            return
+
+        if text != "✅ Розиман":
+            await update.message.reply_text("Давом этиш учун “✅ Розиман” тугмасини босинг.")
+            return
 
         try:
             ss = get_sheet()
@@ -168,12 +224,15 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
                 state["owner_name"],
                 state["owner_phone"],
                 str(user_id),
+                state["gmail"],
                 state["login"],
-                password,
+                state["password"],
                 "Trial",
                 now.strftime("%Y-%m-%d"),
                 end_date.strftime("%Y-%m-%d"),
                 "Active",
+                "TRUE",
+                now.strftime("%Y-%m-%d %H:%M:%S"),
                 now.strftime("%Y-%m-%d %H:%M:%S")
             ])
 
@@ -182,11 +241,13 @@ async def handle_company(update: Update, user_id: int, text: str, state: dict):
             await update.message.reply_text(
                 f"✅ Компания очилди\n\n"
                 f"ID: {company_id}\n"
-                f"Компания: {state['company_name']}\n\n"
+                f"Компания: {state['company_name']}\n"
+                f"Gmail: {state['gmail']}\n\n"
                 f"30 кунлик Trial актив.\n\n"
                 f"Логин: {state['login']}\n"
-                f"Парол: {password}\n\n"
-                f"AppSheet:\n{APPSHEET_LINK}",
+                f"Парол: {state['password']}\n\n"
+                f"AppSheet:\n{APPSHEET_LINK}\n\n"
+                f"⚠️ Агар AppSheet Access Denied чиқса, админ Gmail’ни AppSheet Users рўйхатига қўшиши керак.",
                 reply_markup=company_menu()
             )
 
