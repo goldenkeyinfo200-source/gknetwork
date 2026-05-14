@@ -59,8 +59,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.message.from_user.id
 
-    if text == "Алоқа":
-        await update.message.reply_text("Админ: +998911430202")
+    if text == "Тех.ёрдам":
+        await update.message.reply_text("Админ: +998917468500")
         return
 
     if text == "Компания очиш":
